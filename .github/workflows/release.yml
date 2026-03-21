@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate metadata.json version matches tag
+        env:
+          TAG_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          metadata_version=$(jq -r '.KPlugin.Version' package/metadata.json)
+          if [ "$metadata_version" != "$TAG_VERSION" ]; then
+            echo "::error::Version mismatch: metadata.json has '$metadata_version' but tag is 'v$TAG_VERSION'"
+            exit 1
+          fi
+          echo "Version validated: $TAG_VERSION"
+
+      - name: Validate plasmoid structure
+        run: |
+          errors=0
+          if [ ! -f package/metadata.json ]; then
+            echo "::error::Missing package/metadata.json"
+            errors=$((errors + 1))
+          fi
+          if [ ! -f package/contents/ui/main.qml ]; then
+            echo "::error::Missing package/contents/ui/main.qml"
+            errors=$((errors + 1))
+          fi
+          for field in Id Name Version; do
+            value=$(jq -r ".KPlugin.$field" package/metadata.json)
+            if [ "$value" = "null" ] || [ -z "$value" ]; then
+              echo "::error::Missing required field KPlugin.$field in metadata.json"
+              errors=$((errors + 1))
+            fi
+          done
+          structure=$(jq -r '.KPackageStructure' package/metadata.json)
+          if [ "$structure" != "Plasma/Applet" ]; then
+            echo "::error::KPackageStructure must be 'Plasma/Applet', got '$structure'"
+            errors=$((errors + 1))
+          fi
+          if [ $errors -gt 0 ]; then
+            exit 1
+          fi
+          echo "Plasmoid structure validated"
+
+      - name: Build .plasmoid archive
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cd package
+          zip -r "../display-config-switcher-v${VERSION}.plasmoid" .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: display-config-switcher-v${{ steps.version.outputs.version }}.plasmoid
+          generate_release_notes: true
