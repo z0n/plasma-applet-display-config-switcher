@@ -55,3 +55,15 @@ kpackagetool6 -t Plasma/Applet --remove dev.markusrenken.displayconfigswitcher
 ```bash
 plasmoidviewer -a package/
 ```
+
+## Releasing
+
+1. Update `Version` in [package/metadata.json](package/metadata.json)
+2. Commit the version bump
+3. Tag and push:
+   ```bash
+   git tag v<version>
+   git push origin main v<version>
+   ```
+4. GitHub Actions builds the `.plasmoid` file and creates a [GitHub Release](https://github.com/z0n/plasma-applet-display-config-switcher/releases)
+5. Upload the `.plasmoid` from the release to the [KDE Store](https://store.kde.org)
