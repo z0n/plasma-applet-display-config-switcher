@@ -1,0 +1,13 @@
+{
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit"
+    },
+    "editor.wordBasedSuggestions": "off",
+    "[qml]": {
+        "editor.defaultFormatter": "Delgan.qml-format",
+    },
+    "qt-qml.qmlls.additionalImportPaths": [
+        "/usr/lib/qt6/qml"
+    ]
+}

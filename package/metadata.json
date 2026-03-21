@@ -1,0 +1,21 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Markus Renken",
+                "Email": "hello@markusrenken.dev"
+            }
+        ],
+        "BugReportUrl": "https://github.com/z0n/plasma-applet-display-config-switcher/issues",
+        "Category": "System Information",
+        "Description": "Save and switch between display configurations",
+        "Icon": "preferences-desktop-display",
+        "Id": "dev.markusrenken.displayconfigswitcher",
+        "License": "MIT",
+        "Name": "Display Config Switcher",
+        "Version": "0.1.0",
+        "Website": "https://github.com/z0n/plasma-applet-display-config-switcher"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPackageStructure": "Plasma/Applet"
+}

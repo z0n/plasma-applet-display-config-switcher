@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "theqtcompany.qt-qml",
+        "delgan.qml-format",
+        "redhat.vscode-xml",
+        "ms-vscode.cmake-tools"
+    ]
+}
