@@ -33,7 +33,7 @@ To upgrade after pulling new changes:
 kpackagetool6 -t Plasma/Applet --upgrade package/
 ```
 
-Restart the Plasma Shell afterwards.
+Restart the Plasma Shell afterwards, e.g. via `systemctl --user restart plasma-plasmashell.service`
 
 To remove:
 

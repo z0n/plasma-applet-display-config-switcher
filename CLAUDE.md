@@ -25,7 +25,7 @@ plasmoidviewer -a package/
 cmake -B build && cmake --build build && sudo cmake --install build
 ```
 
-After upgrading, restart plasmashell to see changes: `plasmashell --replace &`
+After upgrading, restart plasmashell to see changes: `systemctl --user restart plasma-plasmashell.service` or `plasmashell --replace &`
 
 ## Architecture
 
