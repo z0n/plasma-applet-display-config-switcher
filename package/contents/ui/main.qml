@@ -8,7 +8,6 @@ import org.kde.plasma.components as PlasmaComponents3
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.plasma.plasmoid
-import "../code/profiles.mjs" as Profiles
 
 PlasmoidItem {
     id: root
@@ -195,7 +194,6 @@ PlasmoidItem {
                 root.handleConfigCapture(stdout, exitCode);
             } else if (source.indexOf("displayconfigswitcher-profiles.json") !== -1) {
                 if (source.startsWith("cat ")) {
-                    // Shared file read result — merge with per-instance profiles
                     let shared = [];
                     if (exitCode === 0 && stdout.trim().length > 0) {
                         try {
@@ -206,14 +204,16 @@ PlasmoidItem {
                             console.warn("Display Config Switcher: shared profiles parse error:", e);
                         }
                     }
-                    let merged = Profiles.mergeProfiles(shared, root.profiles);
-                    if (merged.length > 0) {
-                        let changed = JSON.stringify(merged) !== JSON.stringify(root.profiles);
-                        root.profiles = merged;
-                        Plasmoid.configuration.profiles = JSON.stringify(merged);
-                        if (changed || shared.length !== merged.length)
-                            root.writeSharedProfiles();
+                    if (shared.length > 0) {
+                        // Shared file is source of truth — use it directly
+                        root.profiles = shared;
+                        Plasmoid.configuration.profiles = JSON.stringify(shared);
+                    } else if (root.profiles.length > 0) {
+                        // Shared file empty/missing — seed from per-instance data (migration)
+                        root.writeSharedProfiles();
                     }
+                } else if (exitCode !== 0) {
+                    console.warn("Display Config Switcher: failed to write shared profiles");
                 }
             }
         }
