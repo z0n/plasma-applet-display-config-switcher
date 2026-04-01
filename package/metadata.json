@@ -13,7 +13,7 @@
         "Id": "dev.markusrenken.displayconfigswitcher",
         "License": "MIT",
         "Name": "Display Config Switcher",
-        "Version": "0.1.0",
+        "Version": "0.2.0",
         "Website": "https://github.com/z0n/plasma-applet-display-config-switcher"
     },
     "X-Plasma-API-Minimum-Version": "6.0",

@@ -25,7 +25,7 @@ plasmoidviewer -a package/
 cmake -B build && cmake --build build && sudo cmake --install build
 ```
 
-After upgrading, restart plasmashell to see changes: `plasmashell --replace &`
+After upgrading, restart plasmashell to see changes: `systemctl --user restart plasma-plasmashell.service` or `plasmashell --replace &`
 
 ## Architecture
 
@@ -39,7 +39,15 @@ This is a pure QML plasmoid with no C++ backend. All files live under `package/`
 
 - **Command execution**: Uses `Plasma5Support.DataSource` with `engine: "executable"` to run shell commands. This is the standard Plasma 6 approach (there is no newer alternative).
 - **Display config**: Captured via `kscreen-doctor -j` (JSON output), applied via `kscreen-doctor output.NAME.enable/disable/mode/position` commands. Multiple args in one call for atomic changes.
-- **Profile storage**: Serialized as JSON string in `Plasmoid.configuration.profiles`.
+- **Profile storage**: Per-instance cache in `Plasmoid.configuration.profiles`, synced to shared file `~/.config/displayconfigswitcher-profiles.json` via shell commands. Shared file is source of truth; per-instance is a fast cache for immediate UI rendering.
+
+## Gotchas
+
+- **`kcfgfile name` doesn't update existing plasmoid instances**: Plasma caches the config file location when a widget is first added. Changing `main.xml` and upgrading does not migrate existing instances — they keep reading from the old location. Use `name=""` and manage shared config manually via shell commands.
+- **DataSource timing in `Component.onCompleted`**: Commands run via `connectSource()` during `onCompleted` may not trigger `onNewData` reliably. Use `Qt.callLater()` to defer as a precaution.
+- **`onPropertyChanged` parameter injection removed in Qt 6**: Use `root.propertyName` explicitly (e.g., `if (root.expanded)` not `if (expanded)`).
+- **Shell escaping for JSON**: Single-quote escaping for `printf`: `json.replace(/'/g, "'\"'\"'")`. The executable DataSource runs through `sh -c`, so `$HOME` and `${XDG_CONFIG_HOME:-...}` expand.
+- **QML `.mjs` imports**: Use `export function` syntax — works in both QML (`import "file.mjs" as Ns`) and Node.js. Standard `.js` files expose top-level functions without `export`.
 
 ## Plasma 6 QML Conventions
 

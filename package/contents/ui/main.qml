@@ -14,11 +14,17 @@ PlasmoidItem {
 
     property var profiles: []
     property string _pendingProfileName: ""
+    readonly property string _sharedFile: "${XDG_CONFIG_HOME:-$HOME/.config}/displayconfigswitcher-profiles.json"
 
     switchWidth: Kirigami.Units.gridUnit * 20
     switchHeight: Kirigami.Units.gridUnit * 15
     toolTipMainText: i18n("Display Config Switcher")
     toolTipSubText: i18n("Save and switch between display configurations")
+
+    onExpandedChanged: {
+        if (root.expanded)
+            root.readSharedProfiles();
+    }
 
     function loadProfiles() {
         try {
@@ -30,6 +36,18 @@ PlasmoidItem {
 
     function saveProfiles() {
         Plasmoid.configuration.profiles = JSON.stringify(root.profiles);
+        root.writeSharedProfiles();
+    }
+
+    function writeSharedProfiles() {
+        var json = JSON.stringify(root.profiles);
+        var escaped = json.replace(/'/g, "'\"'\"'");
+        var f = root._sharedFile;
+        executable.run("printf '%s' '" + escaped + "' > " + f + ".tmp && mv " + f + ".tmp " + f);
+    }
+
+    function readSharedProfiles() {
+        executable.run("cat " + root._sharedFile + " 2>/dev/null || true");
     }
 
     function captureCurrentConfig(profileName: string) {
@@ -172,8 +190,35 @@ PlasmoidItem {
             var stderr = data["stderr"];
             var exitCode = data["exit code"];
             executable.disconnectSource(source);
-            if (source === "kscreen-doctor -j")
+            if (source === "kscreen-doctor -j") {
                 root.handleConfigCapture(stdout, exitCode);
+            } else if (source.indexOf("displayconfigswitcher-profiles.json") !== -1) {
+                if (source.startsWith("cat ")) {
+                    let shared = [];
+                    if (exitCode === 0 && stdout.trim().length > 0) {
+                        try {
+                            let parsed = JSON.parse(stdout);
+                            if (Array.isArray(parsed))
+                                shared = parsed;
+                        } catch (e) {
+                            console.warn("Display Config Switcher: shared profiles parse error:", e);
+                        }
+                    }
+                    if (shared.length > 0) {
+                        // Shared file is source of truth — use it directly
+                        let sharedJson = JSON.stringify(shared);
+                        if (sharedJson !== Plasmoid.configuration.profiles) {
+                            root.profiles = shared;
+                            Plasmoid.configuration.profiles = sharedJson;
+                        }
+                    } else if (root.profiles.length > 0) {
+                        // Shared file empty/missing — seed from per-instance data (migration)
+                        root.writeSharedProfiles();
+                    }
+                } else if (exitCode !== 0) {
+                    console.warn("Display Config Switcher: failed to write shared profiles");
+                }
+            }
         }
     }
 
@@ -362,5 +407,6 @@ PlasmoidItem {
 
     Component.onCompleted: {
         root.loadProfiles();
+        Qt.callLater(root.readSharedProfiles);
     }
 }
