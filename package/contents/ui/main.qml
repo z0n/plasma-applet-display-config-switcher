@@ -206,8 +206,11 @@ PlasmoidItem {
                     }
                     if (shared.length > 0) {
                         // Shared file is source of truth — use it directly
-                        root.profiles = shared;
-                        Plasmoid.configuration.profiles = JSON.stringify(shared);
+                        let sharedJson = JSON.stringify(shared);
+                        if (sharedJson !== Plasmoid.configuration.profiles) {
+                            root.profiles = shared;
+                            Plasmoid.configuration.profiles = sharedJson;
+                        }
                     } else if (root.profiles.length > 0) {
                         // Shared file empty/missing — seed from per-instance data (migration)
                         root.writeSharedProfiles();
