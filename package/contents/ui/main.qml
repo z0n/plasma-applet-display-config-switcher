@@ -8,6 +8,7 @@ import org.kde.plasma.components as PlasmaComponents3
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.plasma.plasmoid
+import "../code/profiles.mjs" as Profiles
 
 PlasmoidItem {
     id: root
@@ -190,7 +191,6 @@ PlasmoidItem {
             var stderr = data["stderr"];
             var exitCode = data["exit code"];
             executable.disconnectSource(source);
-            console.log("Display Config Switcher: onNewData source=" + source.substring(0, 80) + " exitCode=" + exitCode);
             if (source === "kscreen-doctor -j") {
                 root.handleConfigCapture(stdout, exitCode);
             } else if (source.indexOf("displayconfigswitcher-profiles.json") !== -1) {
@@ -206,19 +206,12 @@ PlasmoidItem {
                             console.warn("Display Config Switcher: shared profiles parse error:", e);
                         }
                     }
-                    // Merge: shared profiles + any unique per-instance profiles
-                    let sharedCount = shared.length;
-                    let merged = shared;
-                    for (let i = 0; i < root.profiles.length; i++) {
-                        let p = root.profiles[i];
-                        if (!merged.some(function(s) { return s.name === p.name; }))
-                            merged.push(p);
-                    }
+                    let merged = Profiles.mergeProfiles(shared, root.profiles);
                     if (merged.length > 0) {
                         let changed = JSON.stringify(merged) !== JSON.stringify(root.profiles);
                         root.profiles = merged;
                         Plasmoid.configuration.profiles = JSON.stringify(merged);
-                        if (changed || sharedCount !== merged.length)
+                        if (changed || shared.length !== merged.length)
                             root.writeSharedProfiles();
                     }
                 }
