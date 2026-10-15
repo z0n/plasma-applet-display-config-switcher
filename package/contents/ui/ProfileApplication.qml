@@ -51,6 +51,8 @@ QtObject {
                 }
             });
         }
-        application._controller.apply(profile);
+        // ListView modelData wraps nested arrays as QML sequences. Restore the
+        // JSON snapshot before passing it to the JavaScript validation layer.
+        application._controller.apply(profile ? JSON.parse(JSON.stringify(profile)) : profile);
     }
 }
