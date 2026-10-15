@@ -229,6 +229,45 @@ test("malformed saved structures fail preflight as a whole and do not issue comm
     }
 });
 
+test("present non-boolean display flags abort preflight rather than choosing an enable state", () => {
+    for (const key of ["enabled", "connected"]) {
+        for (const value of [null, "true", "false", 0, 1, {}, []]) {
+            const broken = output({[key]: value});
+            const h = harness();
+            h.controller.apply(profile(output({name: "HDMI-1"}), broken));
+            h.query(config(output(), output({name: "HDMI-1"})));
+            assert.equal(h.pending.length, 0, `${key}=${JSON.stringify(value)} must not apply`);
+            assert.deepEqual(h.events.slice(-2), [
+                ["error", "preflight", "invalid"], ["busy", false]
+            ]);
+        }
+    }
+});
+
+test("malformed live flags cannot be used for planning or successful verification", () => {
+    for (const key of ["enabled", "connected"]) {
+        for (const value of [null, "true", "false", 0, 1]) {
+            const broken = config(output({[key]: value}));
+            assert.deepEqual(prepareApplication(profile(output()), broken).args, []);
+            assert.deepEqual(prepareApplication(profile(output()), broken).issues, ["invalid"]);
+            assert.deepEqual(verifyApplication([{name: "DP-1", enabled: false}], broken), ["invalid"]);
+            for (const afterApply of [false, true]) {
+                const h = harness();
+                h.controller.apply(profile(output()));
+                if (afterApply) {
+                    h.query();
+                    h.pending.shift().complete({status: "ok"});
+                }
+                h.query(broken);
+                assert.equal(h.pending.length, 0);
+                assert.deepEqual(h.events.slice(-2), [
+                    ["error", afterApply ? "verifyQuery" : "query", ""], ["busy", false]
+                ]);
+            }
+        }
+    }
+});
+
 test("unconvertible setting values report preflight failure rather than stranding application", () => {
     const h = harness();
     // Valid JSON with an unfamiliar setting shape that cannot coerce to a number.

@@ -15,6 +15,39 @@ TestCase {
     property var edits
     property bool failSave: false
 
+    Component {
+        id: memoryStorage
+        QtObject {
+            property var profiles: [{name: "Desk", outputs: []}]
+            property bool failWrite: false
+            function read(done) {
+                Qt.callLater(function() { done({status: "ok", text: JSON.stringify(profiles)}); });
+            }
+            function capture(done) {
+                Qt.callLater(function() { done({status: "ok", text: '{"outputs":[{"name":"NEW"}]}'}); });
+            }
+            function write(next, done) {
+                Qt.callLater(function() {
+                    if (!failWrite)
+                        profiles = next;
+                    done({status: failWrite ? "error" : "ok"});
+                });
+            }
+        }
+    }
+
+    function useRealController() {
+        const storage = createTemporaryObject(memoryStorage, testCase);
+        testCase.state._storage = storage;
+        // The representation has no Plasma host; publication to the attached
+        // configuration is the only unavailable part of the real state adapter.
+        ignoreWarning(/.*main.qml:.*Value is undefined and could not be converted to an object/);
+        testCase.state.initialize(JSON.stringify(storage.profiles));
+        wait(0); // Let the applet's deferred startup refresh run as well.
+        tryCompare(testCase.state, "busy", false);
+        return storage;
+    }
+
     function i18n(message, value) {
         return message.replace("%1", value === undefined ? "" : value);
     }
@@ -64,7 +97,8 @@ TestCase {
             save: function(name) { testCase.recordEdit("save", name); },
             remove: function(name) { testCase.recordEdit("remove", name); },
             refresh: function() {},
-            retry: function() { testCase.recordEdit("retry", ""); }
+            retry: function() { testCase.recordEdit("retry", ""); },
+            cancelEdit: function() {}
         };
         testCase.state.profiles = [{name: "Desk", outputs: []}];
         testCase.view = createTemporaryObject(testCase.applet.fullRepresentation, testCase, {width: 300, height: 300});
@@ -158,6 +192,74 @@ TestCase {
         mouseClick(control("addProfileButton"));
         testCase.applet.expanded = false;
         compare(testCase.view.editorMode, "");
+    }
+
+    function test_cancelFailedDeletionDiscardsRetry() {
+        const storage = useRealController();
+        storage.failWrite = true;
+        mouseClick(control("deleteProfileButton"));
+        mouseClick(control("confirmProfileEditButton"));
+        tryCompare(testCase.state, "busy", false);
+        verify(testCase.state.error.length > 0);
+        mouseClick(control("cancelProfileEditButton"));
+        compare(testCase.view.editorMode, "");
+        compare(testCase.state.error, "");
+        storage.failWrite = false;
+        testCase.state.retry();
+        wait(20);
+        compare(storage.profiles.length, 1);
+    }
+
+    function test_popupClosePreservesFailedEditRetry() {
+        const storage = useRealController();
+        storage.failWrite = true;
+        testCase.applet.expanded = true;
+        tryCompare(testCase.state, "busy", false);
+        mouseClick(control("deleteProfileButton"));
+        mouseClick(control("confirmProfileEditButton"));
+        tryCompare(testCase.state, "busy", false);
+        const error = testCase.state.error;
+        verify(error.length > 0);
+        testCase.applet.expanded = false;
+        compare(testCase.view.editorMode, "");
+        compare(testCase.state.error, error);
+        testCase.applet.expanded = true;
+        tryCompare(testCase.state, "busy", false);
+        compare(testCase.state.error, error);
+        storage.failWrite = false;
+        ignoreWarning(/.*main.qml:.*Value is undefined and could not be converted to an object/);
+        testCase.state.retry();
+        tryCompare(testCase.state, "busy", false);
+        compare(storage.profiles.length, 0);
+        compare(testCase.state.error, "");
+    }
+
+    function test_staleCreateRequiresReplacementConfirmation() {
+        const storage = useRealController();
+        mouseClick(control("addProfileButton"));
+        const field = control("profileNameField");
+        field.text = "Other";
+        compare(testCase.view.duplicateName, false);
+        storage.profiles = [{name: "Other", outputs: [{name: "KEEP"}]}];
+        waitForPolish(testCase.view);
+        ignoreWarning(/.*main.qml:.*Value is undefined and could not be converted to an object/);
+        mouseClick(control("saveProfileButton"));
+        verify(testCase.state.busy);
+        tryCompare(testCase.state, "busy", false);
+        compare(storage.profiles[0].outputs[0].name, "KEEP");
+        compare(testCase.view.editorMode, "create");
+        compare(field.text, "Other");
+        compare(testCase.view.duplicateName, true);
+        compare(control("saveProfileButton").text, "Update existing");
+        verify(testCase.state.error.length > 0);
+        compare(testCase.state.retryAvailable, false);
+        waitForPolish(testCase.view);
+        ignoreWarning(/.*main.qml:.*Value is undefined and could not be converted to an object/);
+        mouseClick(control("saveProfileButton"));
+        tryCompare(testCase.state, "busy", false);
+        compare(storage.profiles[0].outputs[0].name, "NEW");
+        compare(testCase.view.editorMode, "");
+        compare(testCase.state.error, "");
     }
 
     function test_lastRowConfirmationStaysInView_data() {

@@ -4,6 +4,13 @@ const rotations = {1: "normal", 2: "left", 4: "inverted", 8: "right",
     16: "flipped", 32: "flipped90", 64: "flipped180", 128: "flipped270"};
 const vrrPolicies = {0: "never", 1: "always", 2: "automatic"};
 
+function hasValidDisplayState(config) {
+    // Storage preserves unfamiliar settings, but flags interpreted for apply
+    // must be boolean. Omission remains valid for capability/legacy snapshots.
+    return hasDisplayStructure(config) && config.outputs.every(output =>
+        ["enabled", "connected"].every(key => output[key] === undefined || typeof output[key] === "boolean"));
+}
+
 export function isEnabled(output) {
     if (!output)
         return false;
@@ -49,7 +56,7 @@ export function prepareApplication(profile, config) {
     const args = [];
     const expected = [];
     const issues = [];
-    if (!hasDisplayStructure(profile) || !hasDisplayStructure(config))
+    if (!hasValidDisplayState(profile) || !hasValidDisplayState(config))
         return {args, expected, issues: ["invalid"]};
     for (const saved of profile.outputs) {
         const enabled = isEnabled(saved);
@@ -136,7 +143,7 @@ export function applicationCommand(args) {
 }
 
 export function verifyApplication(expected, config) {
-    if (!hasDisplayStructure(config))
+    if (!hasValidDisplayState(config))
         return ["invalid"];
     const differences = [];
     for (const target of expected) {
@@ -183,7 +190,7 @@ export function createProfileApplication(adapter, events) {
                 if (result.status !== "ok")
                     throw new Error("Query failed");
                 config = JSON.parse(result.text);
-                if (!hasDisplayStructure(config))
+                if (!hasValidDisplayState(config))
                     throw new Error("Invalid query");
             } catch (_) {
                 finish(failure);

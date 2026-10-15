@@ -26,10 +26,12 @@ export function createProfileState(storage, cache, events) {
 
     function finish(operation, error) {
         if (error) {
-            // Popup refreshes must not consume a failed edit's Retry action.
-            if (!failed || operation.kind !== "refresh")
+            // Keep the message and Retry action tied to the same operation.
+            // Popup refreshes must not disguise a retained edit as a read retry.
+            if (!failed || operation.kind !== "refresh" || failed.kind === "refresh") {
                 failed = operation;
-            events.error(error);
+                events.error(error);
+            }
         } else if (operation.kind === "refresh" && failed && failed.kind === "refresh") {
             failed = null;
             events.error("");
@@ -73,6 +75,11 @@ export function createProfileState(storage, cache, events) {
                 const index = next.findIndex(function(profile) {
                     return profile.name === operation.name;
                 });
+                if (index !== -1 && !operation.replaceExisting) {
+                    publish(next);
+                    finish(operation, "exists");
+                    return;
+                }
                 if (index === -1)
                     next.push(operation.profile);
                 else
@@ -136,8 +143,16 @@ export function createProfileState(storage, cache, events) {
 
     return {
         refresh: function() { enqueue({kind: "refresh"}); },
-        save: function(name) { enqueue({kind: "save", name: name}); },
+        save: function(name, replaceExisting = false) {
+            enqueue({kind: "save", name: name, replaceExisting: replaceExisting});
+        },
         remove: function(name) { enqueue({kind: "remove", name: name}); },
+        cancelEdit: function() {
+            if (!active && failed && failed.kind !== "refresh") {
+                failed = null;
+                events.error("");
+            }
+        },
         retry: function() {
             if (failed && !active)
                 enqueue(failed);
