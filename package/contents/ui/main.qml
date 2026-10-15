@@ -12,9 +12,10 @@ import org.kde.plasma.plasmoid
 PlasmoidItem {
     id: root
 
-    property var profiles: []
-    property string _pendingProfileName: ""
-    readonly property string _sharedFile: "${XDG_CONFIG_HOME:-$HOME/.config}/displayconfigswitcher-profiles.json"
+    ProfileState {
+        id: profileState
+        onPublished: function(json) { Plasmoid.configuration.profiles = json; }
+    }
 
     switchWidth: Kirigami.Units.gridUnit * 20
     switchHeight: Kirigami.Units.gridUnit * 15
@@ -23,36 +24,7 @@ PlasmoidItem {
 
     onExpandedChanged: {
         if (root.expanded)
-            root.readSharedProfiles();
-    }
-
-    function loadProfiles() {
-        try {
-            root.profiles = JSON.parse(Plasmoid.configuration.profiles);
-        } catch (e) {
-            root.profiles = [];
-        }
-    }
-
-    function saveProfiles() {
-        Plasmoid.configuration.profiles = JSON.stringify(root.profiles);
-        root.writeSharedProfiles();
-    }
-
-    function writeSharedProfiles() {
-        var json = JSON.stringify(root.profiles);
-        var escaped = json.replace(/'/g, "'\"'\"'");
-        var f = root._sharedFile;
-        executable.run("printf '%s' '" + escaped + "' > " + f + ".tmp && mv " + f + ".tmp " + f);
-    }
-
-    function readSharedProfiles() {
-        executable.run("cat " + root._sharedFile + " 2>/dev/null || true");
-    }
-
-    function captureCurrentConfig(profileName: string) {
-        root._pendingProfileName = profileName;
-        executable.run("kscreen-doctor -j");
+            profileState.refresh();
     }
 
     readonly property var _rotationMap: ({
@@ -67,41 +39,6 @@ PlasmoidItem {
         1: "always",
         2: "automatic"
     })
-
-    function handleConfigCapture(stdout: string, exitCode: int) {
-        if (exitCode !== 0 || !stdout)
-            return;
-
-        var config;
-        try {
-            config = JSON.parse(stdout);
-        } catch (e) {
-            return;
-        }
-        if (!config.outputs)
-            return;
-
-        var profile = {
-            "name": root._pendingProfileName,
-            "outputs": config.outputs,
-            "timestamp": new Date().toISOString()
-        };
-        // Replace existing profile with same name, or add new
-        var found = false;
-        for (var j = 0; j < root.profiles.length; j++) {
-            if (root.profiles[j].name === root._pendingProfileName) {
-                root.profiles[j] = profile;
-                found = true;
-                break;
-            }
-        }
-        if (!found)
-            root.profiles.push(profile);
-
-        root.saveProfiles();
-        root.loadProfiles(); // refresh bindings
-        root._pendingProfileName = "";
-    }
 
     function _findModeName(output: var): string {
         if (!output.modes || !output.currentModeId)
@@ -169,12 +106,6 @@ PlasmoidItem {
             executable.run("kscreen-doctor " + args.join(" "));
     }
 
-    function deleteProfile(idx: int) {
-        root.profiles.splice(idx, 1);
-        root.saveProfiles();
-        root.loadProfiles();
-    }
-
     Plasma5Support.DataSource {
         id: executable
 
@@ -186,39 +117,7 @@ PlasmoidItem {
         }
 
         onNewData: function(source, data) {
-            var stdout = data["stdout"];
-            var stderr = data["stderr"];
-            var exitCode = data["exit code"];
             executable.disconnectSource(source);
-            if (source === "kscreen-doctor -j") {
-                root.handleConfigCapture(stdout, exitCode);
-            } else if (source.indexOf("displayconfigswitcher-profiles.json") !== -1) {
-                if (source.startsWith("cat ")) {
-                    let shared = [];
-                    if (exitCode === 0 && stdout.trim().length > 0) {
-                        try {
-                            let parsed = JSON.parse(stdout);
-                            if (Array.isArray(parsed))
-                                shared = parsed;
-                        } catch (e) {
-                            console.warn("Display Config Switcher: shared profiles parse error:", e);
-                        }
-                    }
-                    if (shared.length > 0) {
-                        // Shared file is source of truth — use it directly
-                        let sharedJson = JSON.stringify(shared);
-                        if (sharedJson !== Plasmoid.configuration.profiles) {
-                            root.profiles = shared;
-                            Plasmoid.configuration.profiles = sharedJson;
-                        }
-                    } else if (root.profiles.length > 0) {
-                        // Shared file empty/missing — seed from per-instance data (migration)
-                        root.writeSharedProfiles();
-                    }
-                } else if (exitCode !== 0) {
-                    console.warn("Display Config Switcher: failed to write shared profiles");
-                }
-            }
         }
     }
 
@@ -251,6 +150,7 @@ PlasmoidItem {
 
                 PlasmaComponents3.ToolButton {
                     id: addButton
+                    enabled: !profileState.busy
 
                     text: i18n("Save current display configuration")
                     icon.name: "list-add"
@@ -265,6 +165,21 @@ PlasmoidItem {
             }
         }
 
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: profileState.error.length > 0
+            type: Kirigami.MessageType.Error
+            text: profileState.error
+            actions: [
+                Kirigami.Action {
+                    text: i18n("Retry")
+                    icon.name: "view-refresh"
+                    enabled: !profileState.busy
+                    onTriggered: profileState.retry()
+                }
+            ]
+        }
+
         PlasmaComponents3.ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -272,7 +187,7 @@ PlasmoidItem {
             ListView {
                 id: profileList
 
-                model: root.profiles
+                model: profileState.profiles
                 clip: true
 
                 PlasmaExtras.PlaceholderMessage {
@@ -287,7 +202,6 @@ PlasmoidItem {
                 delegate: PlasmaComponents3.ItemDelegate {
                     id: profileDelegate
 
-                    required property int index
                     required property var modelData
 
                     width: profileList.width
@@ -340,12 +254,13 @@ PlasmoidItem {
 
                         PlasmaComponents3.ToolButton {
                             id: overwriteButton
+                            enabled: !profileState.busy
 
                             text: i18n("Overwrite with current configuration")
                             icon.name: "document-save"
                             display: PlasmaComponents3.AbstractButton.IconOnly
 
-                            onClicked: root.captureCurrentConfig(profileDelegate.modelData.name)
+                            onClicked: profileState.save(profileDelegate.modelData.name)
 
                             PlasmaComponents3.ToolTip {
                                 text: overwriteButton.text
@@ -354,12 +269,13 @@ PlasmoidItem {
 
                         PlasmaComponents3.ToolButton {
                             id: deleteButton
+                            enabled: !profileState.busy
 
                             text: i18n("Delete this profile")
                             icon.name: "edit-delete"
                             display: PlasmaComponents3.AbstractButton.IconOnly
 
-                            onClicked: root.deleteProfile(profileDelegate.index)
+                            onClicked: profileState.remove(profileDelegate.modelData.name)
 
                             PlasmaComponents3.ToolTip {
                                 text: deleteButton.text
@@ -380,7 +296,7 @@ PlasmoidItem {
 
             onAccepted: {
                 if (profileNameField.text.trim() !== "") {
-                    root.captureCurrentConfig(profileNameField.text.trim());
+                    profileState.save(profileNameField.text.trim());
                     profileNameField.text = "";
                 }
             }
@@ -406,7 +322,7 @@ PlasmoidItem {
     }
 
     Component.onCompleted: {
-        root.loadProfiles();
-        Qt.callLater(root.readSharedProfiles);
+        profileState.initialize(Plasmoid.configuration.profiles);
+        Qt.callLater(profileState.refresh);
     }
 }
