@@ -3,7 +3,7 @@
 A Plasma 6 plasmoid that lets you save and switch between display configurations.
 
 > [!NOTE]
-> This project was primarily developed with [Claude Code](https://claude.ai/code).  
+> This project was primarily developed with ~~[Claude Code](https://claude.ai/code)~~ [OpenCode](https://opencode.ai/) and [OpenChamber](https://openchamber.dev/) using OpenAI models.  
 > I quickly created this for myself as there seems to be no maintained alternative.  
 > I can't really guarantee best practices are followed, but it works fine for me.  
 > If you're using it and it works, great! If not or something is missing, feel free to create an issue and I'll see what I can do.
