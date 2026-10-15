@@ -1,5 +1,6 @@
 import QtQuick
 import "../code/profile-storage.mjs" as Commands
+import "../code/display-query.mjs" as DisplayQuery
 
 QtObject {
     id: storage
@@ -20,8 +21,6 @@ QtObject {
     }
 
     function capture(complete) {
-        storage._runner.run("kscreen-doctor -j", function(data) {
-            complete({status: data["exit code"] === 0 ? "ok" : "error", text: data.stdout});
-        });
+        DisplayQuery.capture(storage._runner, complete);
     }
 }

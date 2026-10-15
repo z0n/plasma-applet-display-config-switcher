@@ -1,5 +1,6 @@
 import QtQuick
 import "../code/profile-application.mjs" as Application
+import "../code/display-query.mjs" as DisplayQuery
 
 QtObject {
     id: application
@@ -13,9 +14,7 @@ QtObject {
         if (!application._controller) {
             application._controller = Application.createProfileApplication({
                 capture: function(complete) {
-                    application._runner.run("kscreen-doctor -j", function(data) {
-                        complete({status: data["exit code"] === 0 ? "ok" : "error", text: data.stdout});
-                    });
+                    DisplayQuery.capture(application._runner, complete);
                 },
                 apply: function(args, complete) {
                     application._runner.run(Application.applicationCommand(args), function(data) {
