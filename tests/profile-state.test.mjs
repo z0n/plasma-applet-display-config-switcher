@@ -132,6 +132,73 @@ test("failed pre-edit reads preserve state and block writes, with a retry", () =
     assert.deepEqual(a.seen.profiles, []);
 });
 
+test("malformed capture structures preserve storage and cache, then retry captures afresh", () => {
+    for (const broken of [null, {name: "DP-1", modes: {}}, {name: "DP-1", modes: [null]},
+        {name: "DP-1", modes: [42]}, {name: "DP-1", modes: [{size: []}]},
+        {name: "DP-1", pos: "0,0"}]) {
+        const cached = [profile("Desk")];
+        const shared = {text: JSON.stringify(cached)};
+        const a = instance(shared, cached);
+        a.state.save("Desk");
+        a.complete("capture", {status: "ok", text: JSON.stringify({outputs: [
+            {name: "HDMI-1"}, broken
+        ]})});
+        assert.equal(a.seen.error, "capture");
+        assert.equal(a.seen.busy, false);
+        assert.equal(a.seen.publications, 1);
+        assert.equal(a.seen.cache, JSON.stringify(cached));
+        assert.equal(shared.text, JSON.stringify(cached));
+        assert.equal(a.pending.length, 0, "no storage request follows invalid capture");
+        a.state.retry();
+        a.complete("capture");
+        a.complete("read");
+        a.complete("write");
+        assert.equal(a.seen.error, "");
+        assert.equal(a.seen.busy, false);
+        assert.equal(a.seen.profiles[0].outputs[0].name, "HDMI-1");
+    }
+});
+
+test("malformed nested shared data blocks edits without replacing established state", () => {
+    for (const modes of [{}, [null], [[]], [{size: 42}]]) {
+        const cached = [profile("Desk")];
+        const text = JSON.stringify([{name: "Broken", outputs: [{name: "DP-1", modes}]}]);
+        const shared = {text};
+        const a = instance(shared, cached);
+        a.state.remove("Broken");
+        a.complete("read");
+        assert.equal(a.seen.error, "invalid");
+        assert.equal(a.seen.busy, false);
+        assert.equal(a.seen.publications, 1);
+        assert.equal(a.seen.cache, JSON.stringify(cached));
+        assert.equal(shared.text, text);
+        assert.equal(a.pending.length, 0);
+        assert.deepEqual(instance(shared, text).seen.profiles, []);
+    }
+});
+
+test("capture and shared reads preserve sparse and future display data without a settings schema", () => {
+    for (const outputs of [[], [{name: "DP-1"}], [{name: "DP-1", modes: null, pos: null}], [
+        {name: "DP-1", rotation: 256, vrrPolicy: 99, scale: "future-value",
+            future: {nested: [null, {value: 1}]}, currentModeId: "legacy",
+            modes: [{id: "legacy", name: "1920x1080@60", future: true},
+                {id: "modern", name: "", size: {width: 1920, height: 1080}, refreshRate: 60}]}
+    ]]) {
+        const shared = {text: "[]"};
+        const a = instance(shared);
+        a.state.save("Desk");
+        a.complete("capture", {status: "ok", text: JSON.stringify({outputs, futureRoot: true})});
+        a.complete("read");
+        a.complete("write");
+        const b = instance(shared);
+        b.state.refresh();
+        b.complete("read");
+        assert.equal(b.seen.error, "");
+        assert.deepEqual(b.seen.profiles[0].outputs, outputs);
+        assert.deepEqual(instance(shared, b.seen.cache).seen.profiles[0].outputs, outputs);
+    }
+});
+
 test("failed writes preserve profiles and cache; retry re-reads other instances' edits", () => {
     const cached = [profile("Desk")];
     const shared = {text: JSON.stringify(cached)};

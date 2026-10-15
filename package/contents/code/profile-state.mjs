@@ -1,3 +1,5 @@
+import {hasDisplayStructure} from "./display-data.mjs";
+
 // The storage adapter completes read/write/capture with a result object.
 // All operations (including capture) run in order within this instance.
 export function createProfileState(storage, cache, events) {
@@ -109,7 +111,7 @@ export function createProfileState(storage, cache, events) {
                     if (result.status !== "ok")
                         throw new Error("Capture failed");
                     config = JSON.parse(result.text);
-                    if (!config || !Array.isArray(config.outputs))
+                    if (!hasDisplayStructure(config))
                         throw new Error("Invalid capture");
                 } catch (_) {
                     finish(operation, "capture");
@@ -146,11 +148,7 @@ export function createProfileState(storage, cache, events) {
 function parseProfiles(text) {
     const profiles = JSON.parse(text);
     if (!Array.isArray(profiles) || profiles.some(function(profile) {
-        return !profile || typeof profile.name !== "string" || !Array.isArray(profile.outputs)
-            || profile.outputs.some(function(output) {
-                return !output || typeof output !== "object" || Array.isArray(output)
-                    || typeof output.name !== "string";
-            });
+        return !hasDisplayStructure(profile) || typeof profile.name !== "string";
     }))
         throw new Error("Invalid profiles");
     return profiles;

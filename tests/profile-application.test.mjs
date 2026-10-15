@@ -191,3 +191,70 @@ test("invalid queries are reported separately before and after application", () 
         assert.deepEqual(h.events.at(-1), ["busy", false]);
     }
 });
+
+test("malformed query structures finish without applying further commands and allow another attempt", () => {
+    for (const broken of [null, [], {}, {name: "OTHER", modes: {}},
+        {name: "OTHER", modes: [null]}, {name: "OTHER", modes: [{size: "1920x1080"}]}]) {
+        for (const afterApply of [false, true]) {
+            const h = harness();
+            h.controller.apply(profile(output()));
+            if (afterApply) {
+                h.query();
+                h.pending.shift().complete({status: "ok"});
+            }
+            h.query(config(output(), broken));
+            assert.deepEqual(h.events.slice(-2), [
+                ["error", afterApply ? "verifyQuery" : "query", ""], ["busy", false]
+            ]);
+            assert.equal(h.pending.length, 0);
+            h.controller.apply(profile(output()));
+            h.query();
+            h.pending.shift().complete({status: "ok"});
+            h.query();
+            assert.deepEqual(h.events.slice(-2), [["error", "", ""], ["busy", false]]);
+        }
+    }
+});
+
+test("malformed saved structures fail preflight as a whole and do not issue commands", () => {
+    for (const broken of [null, {name: "DP-2", modes: {}}, {name: "DP-2", modes: [null]}]) {
+        const h = harness();
+        const saved = profile(output(), broken);
+        assert.deepEqual(prepareApplication(saved, config(output())).issues, ["invalid"]);
+        h.controller.apply(saved);
+        h.query();
+        assert.deepEqual(h.events.slice(-2), [["error", "preflight", "invalid"], ["busy", false]]);
+        assert.equal(h.pending.length, 0);
+        assert.deepEqual(verifyApplication([], config(broken)), ["invalid"]);
+    }
+});
+
+test("unconvertible setting values report preflight failure rather than stranding application", () => {
+    const h = harness();
+    // Valid JSON with an unfamiliar setting shape that cannot coerce to a number.
+    const saved = profile(output({brightness: {toString: null, valueOf: null}}));
+    h.controller.apply(saved);
+    h.query(config(output({brightness: 1})));
+    assert.deepEqual(h.events.slice(-2), [["error", "preflight", "invalid"], ["busy", false]]);
+    assert.equal(h.pending.length, 0);
+    h.controller.apply(profile(output()));
+    assert.equal(h.pending.length, 1);
+});
+
+test("summary helpers tolerate malformed modes and unfamiliar label values", () => {
+    for (const value of [null, {modes: {}}, {modes: [null]},
+        {currentModeId: "a", modes: [{id: "a", size: {width: {toString: null}}, refreshRate: 60}]}]) {
+        assert.equal(modeLabel(value), "");
+        assert.doesNotThrow(() => isEnabled(value));
+    }
+});
+
+test("application retains sparse snapshots and ignores future metadata", () => {
+    const sparse = {name: "DP-1", connected: true, modes: null, pos: null,
+        future: {unknown: [null, 42]}};
+    const plan = prepareApplication(profile(sparse), config(sparse));
+    assert.deepEqual(plan.issues, []);
+    assert.deepEqual(plan.args, ["output.DP-1.scale.1"]);
+    assert.deepEqual(verifyApplication(plan.expected, config({...sparse, scale: 1})), []);
+    assert.deepEqual(prepareApplication(profile(), config()).issues, []);
+});

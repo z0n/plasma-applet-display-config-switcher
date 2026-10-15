@@ -1,8 +1,12 @@
+import {hasDisplayStructure} from "./display-data.mjs";
+
 const rotations = {1: "normal", 2: "left", 4: "inverted", 8: "right",
     16: "flipped", 32: "flipped90", 64: "flipped180", 128: "flipped270"};
 const vrrPolicies = {0: "never", 1: "always", 2: "automatic"};
 
 export function isEnabled(output) {
+    if (!output)
+        return false;
     if (output.connected === false)
         return false;
     if (output.enabled !== undefined)
@@ -12,15 +16,24 @@ export function isEnabled(output) {
 }
 
 function currentMode(output) {
-    return (output.modes || []).find(mode => String(mode.id) === String(output.currentModeId));
+    // Summary callers can receive QML sequences rather than plain JS arrays.
+    try {
+        return (output.modes || []).find(mode => String(mode.id) === String(output.currentModeId));
+    } catch (_) {
+        return undefined;
+    }
 }
 
 export function modeLabel(output) {
     const mode = currentMode(output);
     if (!mode)
         return "";
-    return mode.name || (mode.size ? mode.size.width + "x" + mode.size.height
-        + "@" + Math.round(mode.refreshRate) : "");
+    try {
+        return (typeof mode.name === "string" && mode.name) || (mode.size ? mode.size.width + "x" + mode.size.height
+            + "@" + Math.round(mode.refreshRate) : "");
+    } catch (_) {
+        return "";
+    }
 }
 
 function sameMode(a, b) {
@@ -36,13 +49,9 @@ export function prepareApplication(profile, config) {
     const args = [];
     const expected = [];
     const issues = [];
-    if (!profile || !Array.isArray(profile.outputs) || !config || !Array.isArray(config.outputs))
+    if (!hasDisplayStructure(profile) || !hasDisplayStructure(config))
         return {args, expected, issues: ["invalid"]};
     for (const saved of profile.outputs) {
-        if (!saved || typeof saved.name !== "string") {
-            issues.push("invalid");
-            continue;
-        }
         const enabled = isEnabled(saved);
         const live = config.outputs.find(output => output.name === saved.name && output.connected !== false);
         if (!live) {
@@ -127,7 +136,7 @@ export function applicationCommand(args) {
 }
 
 export function verifyApplication(expected, config) {
-    if (!config || !Array.isArray(config.outputs))
+    if (!hasDisplayStructure(config))
         return ["invalid"];
     const differences = [];
     for (const target of expected) {
@@ -174,7 +183,7 @@ export function createProfileApplication(adapter, events) {
                 if (result.status !== "ok")
                     throw new Error("Query failed");
                 config = JSON.parse(result.text);
-                if (!config || !Array.isArray(config.outputs))
+                if (!hasDisplayStructure(config))
                     throw new Error("Invalid query");
             } catch (_) {
                 finish(failure);
@@ -191,7 +200,15 @@ export function createProfileApplication(adapter, events) {
             events.busy(true);
             events.error("", "");
             query(config => {
-                const plan = prepareApplication(profile, config);
+                let plan;
+                try {
+                    plan = prepareApplication(profile, config);
+                } catch (_) {
+                    // Unknown setting shapes can fail conversion even though
+                    // their containers are valid. Do not strand the operation.
+                    finish("preflight", "invalid");
+                    return;
+                }
                 if (plan.issues.length) {
                     finish("preflight", plan.issues.join(", "));
                     return;
@@ -209,7 +226,13 @@ export function createProfileApplication(adapter, events) {
                         return;
                     }
                     query(actual => {
-                        const differences = verifyApplication(plan.expected, actual);
+                        let differences;
+                        try {
+                            differences = verifyApplication(plan.expected, actual);
+                        } catch (_) {
+                            finish("verifyQuery");
+                            return;
+                        }
                         finish(differences.length ? "verify" : "", differences.join(", "));
                     }, "verifyQuery");
                 });
