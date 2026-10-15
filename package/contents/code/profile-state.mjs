@@ -146,7 +146,11 @@ export function createProfileState(storage, cache, events) {
 function parseProfiles(text) {
     const profiles = JSON.parse(text);
     if (!Array.isArray(profiles) || profiles.some(function(profile) {
-        return !profile || typeof profile.name !== "string" || !Array.isArray(profile.outputs);
+        return !profile || typeof profile.name !== "string" || !Array.isArray(profile.outputs)
+            || profile.outputs.some(function(output) {
+                return !output || typeof output !== "object" || Array.isArray(output)
+                    || typeof output.name !== "string";
+            });
     }))
         throw new Error("Invalid profiles");
     return profiles;

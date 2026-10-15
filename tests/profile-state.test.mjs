@@ -97,6 +97,25 @@ test("malformed, empty-text, non-array and invalid-profile storage never seeds f
     }
 });
 
+test("invalid output entries never reach publication or overwrite shared storage", () => {
+    for (const output of [null, false, 42, "DP-1", [], {}, {name: 42}]) {
+        const text = JSON.stringify([{name: "Broken", outputs: [output]}]);
+        const cached = [profile("Desk")];
+        const shared = {text};
+        const a = instance(shared, cached);
+        a.state.refresh();
+        a.complete("read");
+        assert.equal(a.seen.error, "invalid");
+        assert.deepEqual(a.seen.profiles, cached);
+        a.state.remove("Broken");
+        a.complete("read");
+        assert.equal(a.seen.error, "invalid");
+        assert.equal(a.pending.length, 0);
+        assert.equal(shared.text, text);
+        assert.deepEqual(instance(shared, text).seen.profiles, [], "invalid cache is not published");
+    }
+});
+
 test("failed pre-edit reads preserve state and block writes, with a retry", () => {
     const cached = [profile("Desk")];
     const shared = {text: JSON.stringify(cached)};
