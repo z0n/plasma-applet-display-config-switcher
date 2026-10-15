@@ -47,12 +47,17 @@ PlasmoidItem {
         readonly property bool busy: profileState.busy || profileApplication.busy
         readonly property bool duplicateName: profileState.profiles.some(profile => profile.name === profileNameField.text.trim())
 
-        function cancelEdit() {
+        function dismissEditor() {
             fullView.editorMode = "";
             fullView.targetName = "";
             fullView.submitted = false;
             profileNameField.text = "";
             addButton.forceActiveFocus();
+        }
+
+        function cancelEdit() {
+            profileState.cancelEdit();
+            fullView.dismissEditor();
         }
 
         function confirmEdit(name, deleting) {
@@ -71,7 +76,7 @@ PlasmoidItem {
             if (fullView.editorMode === "delete")
                 profileState.remove(name);
             else
-                profileState.save(name);
+                profileState.save(name, fullView.editorMode === "update" || fullView.duplicateName);
         }
 
         Keys.onEscapePressed: function(event) {
@@ -87,7 +92,7 @@ PlasmoidItem {
             target: root
             function onExpandedChanged() {
                 if (!root.expanded)
-                    fullView.cancelEdit();
+                    fullView.dismissEditor();
             }
         }
 
@@ -95,12 +100,12 @@ PlasmoidItem {
             target: profileState
             function onBusyChanged() {
                 if (!profileState.busy && fullView.submitted && profileState.error === "")
-                    fullView.cancelEdit();
+                    fullView.dismissEditor();
             }
             function onProfilesChanged() {
                 if ((fullView.editorMode === "update" || fullView.editorMode === "delete")
                     && !profileState.profiles.some(profile => profile.name === fullView.targetName))
-                    fullView.cancelEdit();
+                    fullView.dismissEditor();
             }
         }
 
@@ -205,6 +210,7 @@ PlasmoidItem {
             actions: [
                 Kirigami.Action {
                     text: i18n("Retry")
+                    visible: profileState.retryAvailable
                     icon.name: "view-refresh"
                     enabled: !profileState.busy && !profileApplication.busy
                     onTriggered: profileState.retry()

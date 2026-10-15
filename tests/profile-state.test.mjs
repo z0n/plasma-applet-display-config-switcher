@@ -139,7 +139,7 @@ test("malformed capture structures preserve storage and cache, then retry captur
         const cached = [profile("Desk")];
         const shared = {text: JSON.stringify(cached)};
         const a = instance(shared, cached);
-        a.state.save("Desk");
+        a.state.save("Desk", true);
         a.complete("capture", {status: "ok", text: JSON.stringify({outputs: [
             {name: "HDMI-1"}, broken
         ]})});
@@ -232,7 +232,7 @@ test("save captures raw outputs, preserves completed edits and replaces by name"
     const shared = {text: JSON.stringify([profile("Desk"), profile("TV")])};
     const a = instance(shared, [profile("Desk")]);
     const outputs = [{name: "DP-9", currentModeId: "42", customFutureProperty: [1, 2]}];
-    a.state.save("Desk");
+    a.state.save("Desk", true);
     a.complete("capture", {status: "ok", text: JSON.stringify({outputs})});
     a.complete("read");
     a.complete("write");
@@ -330,4 +330,90 @@ test("simultaneous writers explicitly remain last-write-wins", () => {
     a.state.refresh();
     a.complete("read");
     assert.deepEqual(a.seen.profiles.map(p => p.name), ["B"]);
+});
+
+test("cancelling a failed edit discards its retry without changing shared profiles", () => {
+    for (const kind of ["save", "remove"]) {
+        const initial = [profile("Desk")];
+        const shared = {text: JSON.stringify(initial)};
+        const a = instance(shared, initial);
+        a.state[kind]("Desk", true);
+        if (kind === "save")
+            a.complete("capture");
+        a.complete("read");
+        a.complete("write", {status: "error"});
+        a.state.cancelEdit();
+        assert.equal(a.seen.error, "");
+        a.state.retry();
+        assert.equal(a.pending.length, 0);
+        assert.deepEqual(JSON.parse(shared.text), initial);
+    }
+});
+
+test("cancelling an editor does not discard an unrelated refresh retry", () => {
+    const a = instance({text: "[]"});
+    a.state.refresh();
+    a.complete("read", {status: "error"});
+    a.state.cancelEdit();
+    assert.equal(a.seen.error, "read");
+    a.state.retry();
+    a.complete("read");
+    assert.equal(a.seen.error, "");
+});
+
+test("a failed popup refresh preserves the error describing the retained edit retry", () => {
+    const shared = {text: JSON.stringify([profile("Desk")])};
+    const a = instance(shared);
+    a.state.remove("Desk");
+    a.complete("read");
+    a.complete("write", {status: "error"});
+    a.state.refresh();
+    a.complete("read", {status: "error"});
+    assert.equal(a.seen.error, "write");
+    a.state.retry();
+    a.complete("read");
+    a.complete("write");
+    assert.deepEqual(a.seen.profiles, []);
+});
+
+test("create detects a completed cross-instance name collision before writing", () => {
+    const shared = {text: "[]"};
+    const a = instance(shared);
+    a.state.refresh();
+    a.complete("read");
+    const other = [profile("Desk")];
+    shared.text = JSON.stringify(other);
+    a.state.save("Desk");
+    a.complete("capture");
+    a.complete("read");
+    assert.equal(a.pending.length, 0, "no write without replacement confirmation");
+    assert.equal(a.seen.error, "exists");
+    assert.deepEqual(a.seen.profiles, other, "publish the collection so the UI offers Update existing");
+    assert.deepEqual(JSON.parse(shared.text), other);
+    a.state.retry();
+    a.complete("read");
+    assert.equal(a.pending.length, 0, "Retry cannot authorize replacement");
+    assert.equal(a.seen.error, "exists");
+    a.state.save("Desk", true);
+    a.complete("capture");
+    a.complete("read");
+    a.complete("write");
+    assert.equal(a.seen.error, "");
+    assert.equal(a.seen.profiles[0].outputs[0].name, "HDMI-1");
+});
+
+test("a create retry also requires confirmation when another instance has since used the name", () => {
+    const shared = {text: "[]"};
+    const a = instance(shared);
+    a.state.save("Desk");
+    a.complete("capture");
+    a.complete("read");
+    a.complete("write", {status: "error"});
+    const other = [profile("Desk")];
+    shared.text = JSON.stringify(other);
+    a.state.retry();
+    a.complete("read");
+    assert.equal(a.pending.length, 0);
+    assert.equal(a.seen.error, "exists");
+    assert.deepEqual(JSON.parse(shared.text), other);
 });

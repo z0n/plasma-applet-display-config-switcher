@@ -7,6 +7,7 @@ QtObject {
     property var profiles: []
     property bool busy: false
     property string error: ""
+    property bool retryAvailable: false
     property var _controller: null
     property QtObject _storage: ProfileStorage {}
 
@@ -20,7 +21,11 @@ QtObject {
             },
             busy: function(busy) { state.busy = busy; },
             error: function(error) {
+                state.retryAvailable = error !== "" && error !== "exists";
                 switch (error) {
+                case "exists":
+                    state.error = i18n("A profile with this name was saved by another widget. Choose Update existing to replace it.");
+                    break;
                 case "read":
                     state.error = i18n("Could not read shared display profiles. Check access and retry.");
                     break;
@@ -41,7 +46,8 @@ QtObject {
     }
 
     function refresh() { if (state._controller) state._controller.refresh(); }
-    function save(name) { state._controller.save(name); }
+    function save(name, replaceExisting = false) { state._controller.save(name, replaceExisting); }
     function remove(name) { state._controller.remove(name); }
+    function cancelEdit() { if (state._controller) state._controller.cancelEdit(); }
     function retry() { state._controller.retry(); }
 }
