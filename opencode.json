@@ -1,0 +1,49 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "references": {
+    "libkscreen": {
+      "repository": "https://invent.kde.org/plasma/libkscreen.git",
+      "description": "Source for kscreen-doctor and display configuration models/backends. Inspect doctor/ and src/ to confirm JSON output, output names, mode IDs/names, rotation, VRR, brightness, and CLI argument handling. Check the installed version before relying on default-branch behavior."
+    },
+    "libplasma": {
+      "repository": "https://invent.kde.org/plasma/libplasma.git",
+      "description": "Source for PlasmoidItem, the Plasmoid attached object, applet configuration, Plasma Components/Extras, and plasma_install_package. Use to confirm popup, tooltip, QML property ownership, and package installation behavior for Plasma 6."
+    },
+    "plasma5support": {
+      "repository": "https://invent.kde.org/plasma/plasma5support.git",
+      "description": "Source for Plasma5Support.DataSource and the executable data engine used by main.qml. Use to confirm asynchronous command execution, result fields, source connection/disconnection, and command lifecycle."
+    },
+    "plasma-workspace": {
+      "repository": "https://invent.kde.org/plasma/plasma-workspace.git",
+      "description": "Source for plasmashell and the desktop/panel hosts. Use for widget instance lifecycle, containment behavior, shell reloads, and configuration UI behavior outside libplasma."
+    },
+    "kirigami": {
+      "repository": "https://invent.kde.org/frameworks/kirigami.git",
+      "description": "Source for org.kde.kirigami, including Units, Theme, icons, and layout helpers used by the applet. Use to confirm sizing, theme inheritance, and QML component behavior."
+    },
+    "qtdeclarative": {
+      "repository": "https://github.com/qt/qtdeclarative.git",
+      "description": "Qt source mirror for QML, QtQuick, QtQuick.Controls, and QtQuick.Layouts. Use to confirm bindings, Bound component behavior, delegates, JavaScript integration, and Qt.callLater. The default branch is development code; compare against the installed Qt 6 version."
+    },
+    "kconfig": {
+      "repository": "https://invent.kde.org/frameworks/kconfig.git",
+      "description": "Source for KConfig and KConfigXT. Use with libplasma to confirm main.xml defaults, configuration groups, filenames, and per-instance persistence semantics."
+    },
+    "kpackage": {
+      "repository": "https://invent.kde.org/frameworks/kpackage.git",
+      "description": "Source for KPackage and kpackagetool6. Use to confirm package metadata, installation, upgrade, removal, and package structure handling."
+    },
+    "ki18n": {
+      "repository": "https://invent.kde.org/frameworks/ki18n.git",
+      "description": "Source for KDE localization and QML i18n integration. Use to confirm user-visible string translation, substitutions, and plural handling."
+    },
+    "plasma-sdk": {
+      "repository": "https://invent.kde.org/plasma/plasma-sdk.git",
+      "description": "Source for plasmoidviewer, the project's manual verification tool. Use to confirm viewer options and how its applet hosting differs from plasmashell."
+    },
+    "extra-cmake-modules": {
+      "repository": "https://invent.kde.org/frameworks/extra-cmake-modules.git",
+      "description": "Source for ECM, KDEInstallDirs, and KDECMakeSettings used by CMakeLists.txt. Use to confirm KDE installation paths and CMake configuration behavior."
+    }
+  }
+}

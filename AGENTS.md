@@ -6,6 +6,11 @@
 - For local installation, upgrades, shell reloads, and removal, follow `README.md#installation`.
 - System-wide install: `cmake -B build && cmake --build build && sudo cmake --install build`.
 
+## Upstream sources
+- When verifying KDE or Qt behavior, inspect the source references in `opencode.json`; their descriptions identify the relevant implementation.
+- References follow upstream default branches. Check the installed dependency version and compare the corresponding release source before drawing version-specific conclusions.
+- Treat cached reference checkouts as read-only; OpenCode refreshes them automatically.
+
 ## Runtime constraints
 - `package/contents/ui/main.qml` contains both UI and all persistence/display logic. Its root is `PlasmoidItem`; `expanded` and tooltip properties belong there, not on the `Plasmoid` attached object.
 - Commands run asynchronously through `Plasma5Support.DataSource` with `engine: "executable"`. `onNewData` disconnects each source and routes results by command text; update that routing when changing commands or the shared filename. Keep the startup shared-file read deferred with `Qt.callLater`.
