@@ -47,6 +47,9 @@ kpackagetool6 -t Plasma/Applet --remove dev.markusrenken.displayconfigswitcher
 
 Save your current display configuration with **+**, then apply, overwrite or
 delete it from the profile list.
+The **+** button opens an inline name field. Updating or deleting asks for
+confirmation within the profile's row. An existing name offers **Update existing**
+instead of **Save**. Use **Cancel** or Escape to dismiss an edit.
 
 ### Shared profiles
 
