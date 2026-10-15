@@ -15,11 +15,13 @@ A Plasma 6 plasmoid that lets you save and switch between display configurations
 - Save your current display configuration as a named profile
 - Switch between saved profiles from the panel
 - Uses `kscreen-doctor` under the hood for display management
-- Works on both X11 and Wayland
+- Supports Wayland; older Plasma releases also provide X11 sessions (Plasma 6.8 removed them)
 
 ## Installation
 
-Requires Plasma 6 and `kscreen-doctor` (included with KDE Plasma).
+Requires Plasma 6, `kscreen-doctor` (from libkscreen), the Plasma and Kirigami
+QML modules, and the Plasma5Support QML module with its executable engine.
+Distribution package names vary; Plasma5Support is still needed on Plasma 6.
 
 ```bash
 kpackagetool6 -t Plasma/Applet --install package/
@@ -41,24 +43,55 @@ To remove:
 kpackagetool6 -t Plasma/Applet --remove dev.markusrenken.displayconfigswitcher
 ```
 
+## Using profiles
+
+Save your current display configuration with **+**, then apply, overwrite or
+delete it from the profile list.
+
+### Shared profiles
+
+Profiles are shared between widget instances and stored in
+`${XDG_CONFIG_HOME:-$HOME/.config}/displayconfigswitcher-profiles.json`.
+Reopen a widget's popup to see changes made in another instance. Simultaneous
+edits from different instances can overwrite each other.
+
+If reading or saving fails, the widget shows an error and keeps the displayed
+profiles intact. Use **Retry** after resolving the problem.
+
+### Applying profiles
+
+Saved active displays must be connected, and their modes and settings must be
+available. The widget checks these before applying and reports any problems.
+Displays not in the profile are left as they are.
+
+Profiles restore enabled state, resolution and refresh rate, position, scale,
+rotation/reflection, display priority, VRR, HDR, wide color gamut, SDR brightness,
+brightness and overscan where supported. ICC profiles and mirroring are not
+restored. Profiles saved on different hardware or newer software may need to be
+saved again for the current setup.
+
+The widget checks the result and reports settings that were not restored.
+An apply error can mean some settings changed; inspect the display configuration
+before trying again. Changes are not automatically rolled back.
+
 ## Development
 
 ### Requirements
 
 - Plasma 6 development environment
-- `kpackagetool6` (from `plasma-sdk` or equivalent package)
+- `kpackagetool6` (from KPackage; distribution package names vary)
 - `plasmoidviewer` (from `plasma-sdk`, optional, for testing without installing)
-- CMake (optional, for system-wide install)
+- CMake, ECM and libplasma development packages (optional, for system-wide install)
 
 ### Testing
 
-Run the profile-state and shell-storage tests with Node.js 18 or newer:
+Run the JavaScript and shell-storage tests with Node.js 18 or newer:
 
 ```bash
 node --test tests/*.test.mjs
 ```
 
-Exercise the QML module and Plasma executable adapter with Qt 6 QtTest:
+Run the QML integration tests with Qt 6 QtTest and the runtime dependencies above:
 
 ```bash
 sh tests/run-qml-tests.sh
@@ -74,31 +107,8 @@ For a manual Plasma check:
 plasmoidviewer -a package/
 ```
 
-Check saving, overwriting, deletion, error messages and Retry. With two instances,
-delete the final profile in one, then reopen the other: both should show no
-profiles. Applying a profile changes the running desktop's displays.
-
-### Shared profile behavior
-
-Profiles live in `${XDG_CONFIG_HOME:-$HOME/.config}/displayconfigswitcher-profiles.json`.
-Each widget keeps an instance cache for startup. Valid shared profiles always win,
-including an empty array. Only a missing shared file is seeded from the cache;
-invalid content or read failures leave the displayed profiles intact and show an
-error. The containing config directory must exist and be accessible.
-
-The widget refreshes on startup, popup expansion and before edits. Edits target
-profiles by name and appear only after the shared write succeeds. Failed writes
-leave the displayed profiles and cache unchanged. Retry repeats the failed
-operation against the latest shared profiles; a successfully captured snapshot
-is retained when retrying a failed save.
-
-Operations are serialized within each instance. Across instances, simultaneous
-edits remain last-write-wins. An open, idle popup does not poll for changes.
-
-The synchronization module is `package/contents/code/profile-state.mjs`, exposed
-to the applet by `ProfileState.qml`. `ProfileStorage.qml` and
-`profile-storage.mjs` implement the runtime storage/capture adapter. Tests exercise
-the same state module with a deterministic adapter.
+Exercise save, apply, overwrite, delete and Retry, including multiple widget
+instances. Applying a profile changes the running desktop's displays.
 
 ## Releasing
 
